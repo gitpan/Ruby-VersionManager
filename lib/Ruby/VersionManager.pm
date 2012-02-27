@@ -11,6 +11,7 @@ use YAML;
 use LWP::UserAgent;
 use HTTP::Request;
 use LWP::Simple;
+use File::Path;
 use Cwd qw'abs_path cwd';
 
 use Ruby::VersionManager::Version;
@@ -23,6 +24,7 @@ has available_rubies => ( is => 'rw' );
 has agent_string => ( is => 'rw' );
 has archive_type => ( is => 'rw' );
 has gemset => ( is => 'rw' );
+has installed_rubies => ( is => 'rw' );
 
 sub BUILD {
     my ($self) = @_;
@@ -30,10 +32,13 @@ sub BUILD {
     my $v = Ruby::VersionManager::Version->new;
 
     $self->agent_string('Ruby::VersionManager/' . $v->get);
-    $self->archive_type('.tar.bz2');
+    $self->archive_type('.tar.bz2') unless $self->archive_type;
+    $self->rootdir(abs_path($self->rootdir)) if $self->rootdir;
     $self->_make_base or die;
     $self->_check_db or die;
+    $self->_check_installed;
     $self->gemset('default') unless $self->gemset;
+
 }
 
 sub _make_base {
@@ -58,12 +63,34 @@ sub _make_base {
 sub _check_db {
     my ($self) = @_;
 
-    $self->update_db unless -f $self->rootdir . '/var/db.yml';
+    $self->updatedb unless -f $self->rootdir . '/var/db.yml';
     $self->available_rubies(YAML::LoadFile($self->rootdir . '/var/db.yml'));
 
 }
 
-sub update_db {
+sub _check_installed {
+    my ($self) = @_;
+
+    my $rubies = {};
+    my $checked_rubies = {};
+
+    if (-f $self->rootdir . '/var/installed.yml'){
+        $rubies = YAML::LoadFile($self->rootdir . '/var/installed.yml');
+    }
+
+    for my $major (keys %$rubies){
+        for my $ruby (@{$rubies->{$major}}){
+            if (-x $self->rootdir . '/rubies/' . $major . '/' . $ruby . '/bin/ruby'){
+                push @{$checked_rubies->{$major}}, $ruby;
+            }
+        }
+    }
+
+    $self->installed_rubies($checked_rubies);
+
+}
+
+sub updatedb {
     my ($self) = @_;
 
     my @versions = (
@@ -96,6 +123,42 @@ sub update_db {
 
     YAML::DumpFile($self->rootdir . '/var/db.yml', $rubies);
 
+    $self->_check_db;
+
+}
+
+sub uninstall {
+    my ($self) = @_;
+
+    return 0 unless $self->ruby_version;
+
+    for my $major (keys %{$self->installed_rubies}){
+        for my $ruby (@{$self->installed_rubies->{$major}}){
+            if ($ruby eq $self->ruby_version){
+                $self->major_version($major);
+                $self->_remove_ruby;
+                $self->_remove_source;
+                $self->_check_installed;
+                $self->_update_installed;
+            }
+        }
+    }
+
+    return 1;
+}
+
+sub _remove_ruby {
+    my ($self) = @_;
+
+    my $dir_to_remove = $self->rootdir . '/rubies/' . $self->major_version . '/' . $self->ruby_version;
+
+    File::Path::rmtree($dir_to_remove) if -d $dir_to_remove;
+}
+
+sub _remove_source {
+    my ($self) = @_;
+
+    return 1;
 }
 
 sub list {
@@ -103,14 +166,24 @@ sub list {
 
     $self->_check_db or die;
     my %rubies = %{$self->available_rubies};
+    my %installed = %{$self->installed_rubies};
 
+    say "Available ruby versions";
     for (keys %rubies){
-        say "Version $_:";
+        say "\tVersion $_:";
         my @rubies = $self->_sort_rubies( $rubies{$_} );
         for (@rubies){
             my $at = $self->archive_type;
             (my $ruby = $_) =~ s/(.*)$at/$1/;
-            say "\t$ruby";
+            say "\t\t$ruby";
+        }
+    }
+
+    say "Installed ruby versions";
+    for (keys %installed){
+        say "\tVersion: $_";
+        for (@{$installed{$_}}){
+            say "\t\t$_";
         }
     }
 }
@@ -211,12 +284,31 @@ sub install {
     (my $major_version = $self->ruby_version) =~ s/ruby-(\d\.\d).*/$1/;
     $self->major_version($major_version);
 
-    $self->_fetch_ruby;
-    $self->_unpack_ruby;
-    $self->_make_install;
+    my $ruby = $self->ruby_version;
+    my $installed = 0;
+    $installed = 1 if join ' ', @{$self->installed_rubies->{$major_version}} ~~ /$ruby/;
+
+    if (not $installed){
+        $self->_fetch_ruby;
+        $self->_unpack_ruby;
+        $self->_make_install;
+    }
 
     $self->_setup_environment;
-    $self->_install_rubygems;
+
+    if (not $installed){
+        $self->_install_rubygems;
+        push @{$self->installed_rubies->{$major_version}}, $ruby unless $installed;
+        $self->_update_installed;
+    }
+
+
+}
+
+sub _update_installed {
+    my ($self) = @_;
+
+    YAML::DumpFile($self->rootdir . '/var/installed.yml', $self->installed_rubies);
 
 }
 
@@ -372,32 +464,62 @@ This is an unstable development release not ready for production!
 
 =head1 VERSION
 
-Version 0.03.04
+Version 0.03.05
 
 =head1 SYNOPSIS
 
 The Ruby::VersionManager Module will provide a subset of the bash rvm.
 
-It is recommended to use Ruby::VersionManager with local::lib to avoid interference with possibly installed system ruby.
 Ruby::VersionManager comes with a script rvm.pl. See the perldoc of rvm.pl for a list of actions and options.
 
+=head1 ATTRIBUTES
+
+=head2 rootdir
+
+Root directory for Ruby::VersionManager file structure.
+
+=head2 ruby_version
+
+The ruby version to install, check or remove.
+Any String matching one of the major ruby versions is valid. Ruby::VersionManager will guess a version based on available versions matching the string. If multiple versions match the latest stable release will be used.
+Preview and RC versions will never be installed automatically. You have to provide the full matching version string as shown with the list method.
+
+=head2 gemset
+
+Name your gemset. More sophisticated support for gemsets needs to be implemented.
 
 =head1 CONSTRUCTION
 
-All attributes are optional at creation.
+All attributes are optional at creation. Note that rootdir should be set at construction if you want another directory than default because Ruby::VersionManager->new will bootstrap the needed directories.
 
-    my $rvm = Ruby::VersionManager->new;
+    my $rvm = Ruby:VersionManager->new;
+
+Or
+
+    my $rvm = Ruby:VersionManager->new(
+        rootdir => '/path/to/root',
+        ruby_version => '1.8',
+        gemset => 'name_of_the_set',
+    );
 
 
 =head1 METHODS
 
+=head2 available_rubies
+
+Returns a hashref of the available ruby versions.
+
+=head2 installed_rubies
+
+Returns a hashref of the installed ruby versions.
+
 =head2 list
 
-Print a list of available ruby versions to STDOUT. (Will return a datastructure soon)
+Print a list of available and installed ruby versions to STDOUT.
 
     $rvm->list;
 
-=head2 update_db
+=head2 updatedb
 
 Update database of available ruby versions.
 
@@ -422,13 +544,20 @@ Latest ruby-1.8
 Install preview
 
     $rvm->ruby_version('ruby-1.9.3-preview1');
-    $rvm->isntall;
+    $rvm->install;
 
+=head2 uninstall
+
+Remove a ruby version and the source dir including the downloaded archive.
+You have to provide the full exact version of the ruby you want to remove as shown with list.
+
+    $rvm->ruby_version('ruby-1.9.3-preview1');
+    $rvm->uninstall;
 
 =head1 LIMITATIONS AND TODO
 
 Currently Ruby::VersionManager is only tested to be running on Linux with bash installed.
-Support of gemsets and uninstall needs to be added.
+Better support of gemsets needs to be added.
 
 =head1 AUTHOR
 

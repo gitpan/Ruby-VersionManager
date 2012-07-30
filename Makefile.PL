@@ -14,6 +14,7 @@ WriteMakefile
                    'YAML' => 0,
                    'Moo' => 0,
                    'Test::More' => 0,
+                   'autodie' => 0,
                    'File::Path' => 0,
                    'LWP::Simple' => 0,
                    'LWP' => 0,

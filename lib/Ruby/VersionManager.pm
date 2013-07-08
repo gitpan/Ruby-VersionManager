@@ -26,15 +26,16 @@ has agent_string     => ( is => 'rw' );
 has archive_type     => ( is => 'rw' );
 has gemset           => ( is => 'rw' );
 has installed_rubies => ( is => 'rw' );
+has version          => ( is => 'rw' );
 
-our $VERSION = 0.004;
+our $VERSION = 0.004001;
 
 sub BUILD {
 	my ($self) = @_;
 
-	my $v = $VERSION;
+	$self->version($VERSION);
 
-	$self->agent_string( 'Ruby::VersionManager/' . $v );
+	$self->agent_string( 'Ruby::VersionManager/' . $self->version );
 	$self->archive_type('.tar.bz2') unless $self->archive_type;
 	$self->rootdir( abs_path( $self->rootdir ) ) if $self->rootdir;
 	$self->_make_base or die;
@@ -473,7 +474,7 @@ This is an unstable development release not ready for production!
 
 =head1 VERSION
 
-Version 0.004
+Version 0.004001
 
 =head1 SYNOPSIS
 
@@ -514,7 +515,7 @@ Additionally you can resemble gemsets from other users or machines by using rein
 =head2 agent_string
 
 The user agent used when downloading ruby.
-Defaults to Ruby::VersionManager/0.004.
+Defaults to Ruby::VersionManager/0.004001.
 
 =head2 archive_type
 
@@ -600,6 +601,12 @@ You have to provide the full exact version of the ruby you want to remove as sho
 Update the environment to use another gem set for the corrently active ruby.
 
 	$rvm->switch_gemset('another_set')
+
+=head2 version
+
+Returns the numerical version of the distribution.
+
+	my $version = $rvm->version
 
 =head1 LIMITATIONS AND TODO
 

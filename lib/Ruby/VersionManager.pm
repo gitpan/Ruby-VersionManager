@@ -28,7 +28,7 @@ has gemset           => ( is => 'rw' );
 has installed_rubies => ( is => 'rw' );
 has version          => ( is => 'rw' );
 
-our $VERSION = 0.004001;
+our $VERSION = 0.004002;
 
 sub BUILD {
 	my ($self) = @_;
@@ -474,7 +474,7 @@ This is an unstable development release not ready for production!
 
 =head1 VERSION
 
-Version 0.004001
+Version 0.004002
 
 =head1 SYNOPSIS
 
@@ -515,7 +515,7 @@ Additionally you can resemble gemsets from other users or machines by using rein
 =head2 agent_string
 
 The user agent used when downloading ruby.
-Defaults to Ruby::VersionManager/0.004001.
+Defaults to Ruby::VersionManager/0.004002.
 
 =head2 archive_type
 

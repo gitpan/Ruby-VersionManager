@@ -1,16 +1,9 @@
-Build.PL
-Changes
+LICENSE
+MANIFEST
+META.yml
+Makefile.PL
+README
+dist.ini
 lib/Ruby/VersionManager.pm
-lib/Ruby/VersionManager/Config.pm
-lib/Ruby/VersionManager/Version.pm
 lib/Ruby/VersionManager/Gem.pm
 script/rvm.pl
-MANIFEST			This list of files
-README
-t/00-load.t
-t/manifest.t
-t/pod-coverage.t
-t/pod.t
-Makefile.PL
-META.yml
-META.json

@@ -38,7 +38,11 @@ sub run_action {
 sub _reinstall {
     my ($self) = @_;
 
-    if ( defined $self->_gem_list && -f $self->_gem_list ) {
+	my $stdin .= $_ while (<>);
+	if ($stdin) {
+		$self->_gem_list( $self->_parse_gemlist($stdin));
+	}
+    elsif ( defined $self->_gem_list && -f $self->_gem_list ) {
         my $gemlist = '';
         {
             local $/;
@@ -119,7 +123,7 @@ This is an unstable development release not ready for production!
 
 =head1 VERSION
 
-Version 0.003020
+Version 0.004
 
 =head1 SYNOPSIS
 
@@ -143,7 +147,7 @@ The additional actions to pass to Ruby::VersionManager::Gem::run_action.
 
 =head2 reinstall
 
-You can resemble gemsets from other users or machines by using reinstall with a file containing the output of 'gem list'. When omiting the file name the currently installed gemset will be completely reinstalled without pulling in any additional dependencies.
+You can resemble gemsets from other users or machines by using reinstall with a file containing the output of 'gem list'. When omiting the file name the gemset is read from <STDIN>. If nothing can be read the currently installed gemset will be completely reinstalled without pulling in any additional dependencies.
 
     $gem->run_action('reinstall', ($filename));
 

@@ -19,4 +19,4 @@ requires:
   YAML: 0
   autodie: 0
   perl: 5.010
-version: 0.004002
+version: 0.004003
